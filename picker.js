@@ -92,7 +92,7 @@ class picker extends HTMLElement {
 .tab { flex: 1; padding: 7px 0; text-align: center; border-radius: 7px; cursor: pointer; font-size: 11px; color: #888; transition: 0.2s; font-weight: 600; }
 .tab.active { background: #fff; color: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 
-.page { width: 100%; min-height: 50px; max-height: 300px; }
+.page { width: 100%; min-height: 50px; max-height: 300px; overflow-y: auto; }
 .hidden { display: none !important; }
 .touch-none { touch-action: none; }
 
