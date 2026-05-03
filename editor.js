@@ -1,0 +1,400 @@
+class Editor extends HTMLElement {
+  #lang;
+  #place;
+  #tab;
+  #timer;
+  #parser;
+  static tokenizers = new Map();
+  #style = `
+:host { width: 100%; height: 100%; position: relative; display: flex; flex-direction: column; background: rgba(255,255,255,0.25); border-radius: 12px; border: 2px solid #c0c7d1; --one-fg: #383a42; --one-keyword: #a626a4; --one-string: #50a14f; --one-number: #986801; --one-regex: #c18401; --one-ident: #4078f2; --one-punc: #383a42; --one-comment: #a0a1a7; --one-template: #50a14f; --one-template-expr: #383a42; --one-error-bg: #ffdddd; --one-error-fg: #e45649; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+header { position: sticky; top: 0; z-index: 10; padding: .1rem 1rem; background: #f8f8f8; border-radius: 12px 12px 0 0; user-select: none; height: 15%; display: flex; }
+.icons { display: flex; flex: 1; flex-direction: row-reverse; padding: .1rem .3rem; gap: .3rem; }
+.icons button { border: none; background: none; cursor: pointer; }
+.flex { display: flex; width: 97.5%; flex: 1; border: 2px solid #c0c7d1; border-radius: 12px; margin: 0 auto; margin-bottom: .5rem; }
+.line { display: flex; flex-direction: column; min-width: 40px; max-width: 50%; height: 100%; resize: horizontal; overflow: hidden; color: rgba(0,0,0,0.4); font-family: monospace; font-size: 14px; border-right: 1px solid #c0c7d1; line-height: 1.5; padding: .5rem .25rem; user-select: none; }
+.line p.active { color: #000; }
+.content { flex: 1; position: relative; height: 100%; }
+.content > * { position: absolute; top: 0; left: 0; right: 0; border: none; border-radius: 12px; background: transparent; font-family: monospace; font-size: 14px; line-height: 1.5; white-space: pre; overflow-x: scroll; overflow-y: hidden; min-height: 150px; padding: .5rem; }
+.highlight-view { pointer-events: none; user-select: none; cursor: text; color: var(--one-fg); }
+.highlight-text { resize: none; outline: none; color: transparent; caret-color: #000; background: transparent; border-radius: 12px; }
+.highlight-text::selection { color: transparent; background: #dbebff; }
+.active { background: var(--act-bg, #f0f0f0); }
+.ms-icon { font-family: 'Material Symbols Outlined'; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+/* ========================= */
+/* HTML TOKENS               */
+/* ========================= */
+.html-doctype { color: var(--one-comment); }
+.html-comment { color: var(--one-comment); font-style: italic; }
+.html-tagopen { color: #e45649; }
+.html-tagclose { color: #e45649; }
+.html-selfclose { color: #e45649; }
+.html-tagname { color: #986801; }
+.html-attrname { color: #4078f2; }
+.html-equals { color: var(--one-punc); }
+.html-attrvalue { color: #50a14f; }
+.html-text { color: var(--one-fg); }
+.html-scriptcontent { color: #50a14f; }
+.html-stylecontent { color: #50a14f; }
+
+/* ========================= */
+/* CSS TOKENS                */
+/* ========================= */
+.css-whitespace { color: var(--one-fg); }
+.css-comment { color: var(--one-comment); }
+.css-atrule { color: var(--one-keyword); }
+.css-keyword { color: var(--one-keyword); }
+.css-identifier { color: var(--one-ident); }
+.css-class { color: var(--one-ident); }
+.css-hash { color: var(--one-ident); }
+.css-pseudo { color: var(--one-keyword); }
+.css-attr-operator { color: var(--one-punc); }
+.css-string { color: var(--one-string); }
+.css-number { color: var(--one-number); }
+.css-combinator { color: var(--one-punc); }
+.css-nesting { color: var(--one-keyword); }
+.css-punctuator { color: var(--one-punc); }
+.css-property { color: var(--one-ident); }
+.css-value { color: var(--one-string); }
+.css-error { color: var(--one-error-fg); background: var(--one-error-bg); }
+
+/* ========================= */
+/* JS TOKENS                 */
+/* ========================= */
+.js-comment { color: var(--one-comment); font-style: italic; }
+.js-keyword { color: var(--one-keyword); }
+.js-string { color: var(--one-string); }
+.js-number { color: var(--one-number); }
+.js-regex { color: var(--one-regex); }
+.js-identifier { color: var(--one-ident); }
+.js-punctuator { color: var(--one-punc); }
+.js-templatestart { color: var(--one-template); }
+.js-templateend { color: var(--one-template); }
+.js-templatechunk { color: var(--one-template); }
+.js-templateexprstart { color: var(--one-template-expr); }
+.js-templateexprend { color: var(--one-template-expr); }
+.js-error { background: var(--one-error-bg); color: var(--one-error-fg); border-bottom: 1px dashed var(--one-error-fg); }
+
+/* ========================= */
+/* JSON TOKENS               */
+/* ========================= */
+.json-comment { color: var(--one-comment); font-style: italic; }
+.json-keyword { color: var(--one-keyword); }
+.json-string { color: var(--one-string); }
+.json-number { color: var(--one-number); }
+.json-regex { color: var(--one-regex); }
+.json-identifier { color: var(--one-ident); }
+.json-punctuator { color: var(--one-punc); }
+.json-error { background: var(--one-error-bg); color: var(--one-error-fg); border-bottom: 1px dashed var(--one-error-fg); }
+
+.markdown-text        { color: #383a42; }
+.markdown-punct       { color: #383a42; }
+.markdown-whitespace  { color: #383a42; }
+.markdown-newline     { color: #383a42; }
+
+.markdown-heading     { color: #4078f2; }
+.markdown-emphasis    { color: #986801; }
+.markdown-strong      { color: #c18401; }
+.markdown-link_label  { color: #4078f2; }
+.markdown-link_url    { color: #0184bc; }
+.markdown-image_label { color: #50a14f; }
+.markdown-image_url   { color: #0184bc; }
+/* ========================= */
+/* PLAIN TOKENS              */
+/* ========================= */
+.plain-plain { color: var(--one-fg); }
+.plain-text { color: var(--one-fg); }
+  `;
+
+  static get observedAttributes() {
+    return ['lang', 'value', 'placeholder', 'tab'];
+  }
+  static langMap = [
+    { regex: /^(javascript|js|node|nodejs|jsx|tsx)$/i, value: 'js' },
+    { regex: /^(javascriptobjectnotation|)$/i, value: 'json' },
+    { regex: /^(markdown|md|kramdown|markdown-it)$/i, value: 'markdown' }
+  ];
+
+  get value() {
+    return this.#$(".highlight-text")?.value ?? "";
+  }
+  
+  set value(v) {
+    const textarea = this.#$(".highlight-text");
+    if (textarea) {
+      textarea.value = v;
+      this.#update();
+    }
+  }
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.buttonActions = {
+      del: () => {
+        this.#$('.highlight-text').value = '';
+        this.#render();
+      },
+      copy: async () => {
+        const t = this.#$('.highlight-text');
+        const copysp = this.#$('#copyBtn span');
+        t.select();
+        try {
+          await navigator?.clipboard?.writeText?.(t.value);
+          copysp.textContent = 'check';
+        } catch (e) {
+          copysp.textContent = 'error';
+        }
+        setTimeout(() => copysp.textContent = 'content_copy', 3000);
+      }
+    }
+  }
+
+  async connectedCallback() {
+    this.#updateLang(this.getAttribute('lang') ?? 'plain');
+    this.#updatePlace(this.getAttribute('placeholder') ?? '');
+    this.#updateTab(this.getAttribute('tab') ?? '2');
+
+    await this.#loadParser();
+    
+    this.#render();
+  }
+  #$(s, r=this.shadowRoot) {
+    return r.querySelector(s);
+  }
+  async attributeChangedCallback(name, oldValue, newValue) {
+    if (!this.isConnected) return;
+
+    switch (name) {
+      case 'lang': {
+        this.#updateLang(newValue);
+        await this.#loadParser();
+        this.#render();
+        break;
+      }
+      case 'placeholder': {
+        this.#updatePlace(newValue);
+        this.#render();
+        break;
+      }
+      case 'tab': {
+        this.#updateTab(newValue);
+        break;
+      }
+    }
+  }
+  async #loadParser(lang, flag=false) {
+    const l = lang ?? this.#lang;
+    const langTok = Editor.tokenizers.get(l);
+  
+    if (langTok) {
+      if (!flag) this.#parser = langTok;
+      return langTok;
+    }
+  
+    try {
+      const { tokenize } = await import(`https://ysas4331.github.io/Editor/lexers/${l}.min.js`);
+  
+      Editor.tokenizers.set(l, tokenize);
+  
+      if (!flag) this.#parser = tokenize;
+      return tokenize;
+  
+    } catch (e) {
+      console.warn(`Parser for "${l}" not found. Falling back to plain.`);
+  
+      const t = v => [{ type: 'plain', value: v }];
+  
+      Editor.tokenizers.set(l, t);
+  
+      if (!flag) this.#parser = t;
+      this.#lang = 'plain';
+      return t;
+    }
+  }
+  #normalizeLang(lang) {
+    const name = lang.toLowerCase().trim();
+    for (const item of Editor.langMap) {
+      if (item.regex.test(name)) {
+        return item.value;
+      }
+    }
+    return name;
+  }
+  #updateLang(v) {
+    this.#lang = this.#normalizeLang(v);
+  }
+  #updatePlace(v) {
+    this.#place = v;
+  }
+  #updateTab(v) {
+    this.#tab = ' '.repeat(v);
+  }
+  #escapeHtml(html) {
+    return html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  #render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        ${this.#style}
+      </style>
+      <header>
+        <span>${this.#lang}</span>
+        <div class="icons">
+          <button data-action="del"><span class="ms-icon">delete</span></button>
+          <button data-action="copy" id="copyBtn"><span class="ms-icon">content_copy</span></button>
+          <button><span class="ms-icon">file_save</span></button>
+          <button><span class="ms-icon">document_search</span></button>
+        </div>
+      </header>
+      <div class="flex">
+        <div class="line"></div>
+        <div class="content">
+          <textarea class="highlight-text" placeholder="${this.#place}" spellcheck="false"></textarea>
+          <div class="highlight-view ${this.#lang}"></div>
+        </div>
+      </div>
+    `;
+    this.#attachEvent();
+    this.#updateLines(this.#$('.highlight-text'));
+  }
+  #autoResize(text, view) {
+    text.style.height = 'auto';
+    text.style.height = text.scrollHeight + 'px';
+    view.style.height = text.style.height;
+
+    const content = text.parentElement;
+    content.style.height = text.style.height;
+
+    const flex = content.parentElement;
+    flex.style.height = text.style.height;
+  }
+  async #update(view, text) {
+    const tokens = this.#parser(text.value, {
+      "tokenizeStyle": await this.#loadParser('css', true),
+      "tokenizeScript": await this.#loadParser('js', true),
+      "tokenizeMarkup": await this.#loadParser('html', true)
+      
+    });
+    console.log(tokens);
+    view.innerHTML = tokens.map(tok =>
+      `<span class="${(tok.lang ?? this.#lang)}-${tok.type}">${this.#escapeHtml(tok.value)}</span>`
+    ).join('');
+    this.#autoResize(text, view);
+  }
+  #updateLines(text) {
+    const line = this.#$('.line');
+    const view = this.#$('.highlight-view');
+    const count = text.value.split('\n').length;
+    const index = text.value.slice(0, text.selectionStart).split('\n').length;
+  
+    let html = '';
+    for (let i = 1; i <= count; i++) {
+      html += `<p${index === i ? ' class="active"' : ""}>${i}</p>`;
+    }
+    line.innerHTML = html;
+    
+    line.style.height = text.scrollHeight + 'px';
+  }
+  #attachEvent() {
+    const text = this.#$('.highlight-text');
+    const view = this.#$('.highlight-view');
+    const buttons = this.#$('.icons');
+    buttons.addEventListener('click', async e => {
+      const tg = e.target.closest('button');
+      if (!tg) return;
+
+      const ac = tg.dataset.action;
+
+      await this.buttonActions[ac]?.();
+    });
+    text.addEventListener('keyup', () => this.#updateLines(text));
+    text.addEventListener('click', () => this.#updateLines(text));
+    text.addEventListener('select', () => this.#updateLines(text));
+    text.addEventListener('input', () => {
+      view.textContent = text.value;
+      if (this.#timer) clearTimeout(this.#timer);
+
+      this.#timer = setTimeout(() => {
+        this.#update(view, text);
+      }, 300);
+    });
+    text.addEventListener('keydown', e => {
+      this.#updateLines(text);
+      if (e.isComposing || e.key === 'Process') {
+        return;
+      }
+      const k = e.code.toLowerCase();
+    
+      const start = text.selectionStart;
+      const end   = text.selectionEnd;
+      const value = text.value;
+    
+      const before = value.slice(0, start);
+      const after  = value.slice(end);
+    
+      const lines = value.split('\n');
+    
+      const lineIndex = before.split('\n').length - 1;
+    
+      const isSingleLine = before.split('\n').length === value.slice(0, end).split('\n').length;
+      const isMultiLine = !isSingleLine;
+    
+      switch (k) {
+        case 'tab': {
+          if (e.ctrlKey) return;
+          e.preventDefault();
+    
+          const tab = this.#tab ?? '\t';
+    
+          if (isSingleLine) {
+            text.value = before + tab + after;
+            const pos = start + tab.length;
+            text.selectionStart = text.selectionEnd = pos;
+    
+          } else {
+            const startLine = before.split('\n').length - 1;
+            const endLine = value.slice(0, end).split('\n').length - 1;
+    
+            for (let i = startLine; i <= endLine; i++) {
+              lines[i] = tab + lines[i];
+            }
+    
+            text.value = lines.join('\n');
+    
+            const added = tab.length;
+            text.selectionStart = start + added;
+            text.selectionEnd   = end   + added * (endLine - startLine + 1);
+          }
+
+          this.#update(view, text);
+          break;
+        }
+        case 'enter': {
+          e.preventDefault();
+          const currentLine = lines[lineIndex];
+        
+          const indentMatch = currentLine.match(/^[\t ]*/);
+          const indent = indentMatch ? indentMatch[0] : '';
+        
+          const insert = '\n' + indent;
+        
+          text.value = before + insert + after;
+        
+          const pos = start + insert.length;
+          text.selectionStart = text.selectionEnd = pos;
+
+          this.#update(view, text);
+          break;
+        }
+      }
+      this.#updateLines(text);
+    });
+    text.addEventListener('scroll', () => {
+      view.scrollTop = text.scrollTop;
+      view.scrollLeft = text.scrollLeft;
+    });
+  }
+}
+
+customElements.define('com-editor', Editor);
