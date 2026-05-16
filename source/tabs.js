@@ -19,14 +19,14 @@ class ComTabs extends HTMLElement {
     padding: 4px;
     border-radius: 10px;
     overflow-x: auto;
-    scrollbar-width: none; /* Firefox */
+    scrollbar-width: none;
   }
   #tabs::-webkit-scrollbar {
-    display: none; /* Chrome / Safari */
+    display: none;
   }
 
   .tab {
-    flex: 0 0 auto;
+    flex: 1;
     min-width: 100px;
     padding: 7px 0;
     text-align: center;
