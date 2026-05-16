@@ -1,2 +1,2 @@
-import '/Components/editor.js';
-import '/Components/picker.js';
+import '/Components/source/editor.js';
+import '/Components/source/picker.js';
