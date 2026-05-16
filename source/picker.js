@@ -35,14 +35,8 @@ class picker extends HTMLElement {
 <div id="btn"></div>
 
 <div id="wrap">
-  <div id="tabs">
-    <div class="tab active" data-tab="picker">Picker</div>
-    <div class="tab" data-tab="palette">Palette</div>
-    <div class="tab" data-tab="image">Image</div>
-  </div>
-
-  <div id="tab-contents">
-    <div class="page" data-tab="picker">
+  <com-tabs>
+    <div class="page" label="Picker">
       <div id="sv" class="touch-none"><div id="sv-c"></div></div>
       <div class="sl touch-none" id="h-sl"><div class="tr h"></div><div class="th" id="h-th"></div></div>
       <div class="sl touch-none" id="a-sl"><div class="tr a"></div><div class="th" id="a-th"></div></div>
@@ -55,11 +49,11 @@ class picker extends HTMLElement {
       </div>
     </div>
 
-    <div class="page hidden" data-tab="palette">
+    <div class="page" label="Palette">
       <div id="palette-grid"></div>
     </div>
 
-    <div class="page hidden" data-tab="image">
+    <div class="page" label="Image">
       <input id="image-file" type="file" accept="image/*" hidden>
       <label for="image-file" id="image-span">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="up-icon"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
@@ -71,7 +65,7 @@ class picker extends HTMLElement {
         <button id="image-reset" class="btn-sm">Change Image</button>
       </div>
     </div>
-  </div>
+  </com-tabs>
 </div>
 <style>
 * { user-select: none; box-sizing: border-box; }
@@ -88,9 +82,7 @@ class picker extends HTMLElement {
   border-radius: var(--r); border: 1px solid #eee; background: #fff; box-shadow: var(--sh); z-index: 9999;
 }
 
-#tabs { display: flex; gap: 4px; margin-bottom: 16px; background: #f5f5f7; padding: 4px; border-radius: 10px; }
-.tab { flex: 1; padding: 7px 0; text-align: center; border-radius: 7px; cursor: pointer; font-size: 11px; color: #888; transition: 0.2s; font-weight: 600; }
-.tab.active { background: #fff; color: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+/* 旧 #tabs と .tab 関連のスタイルは com-tabs 側に内包されたため削除 */
 
 .page { width: 100%; min-height: 50px; max-height: 300px; overflow-x: hidden;overflow-y: auto; }
 .hidden { display: none !important; }
@@ -145,8 +137,7 @@ class picker extends HTMLElement {
     const $ = s => this.shadowRoot.querySelector(s);
     this.#ui = {
       btn: $('#btn'), wrap: $('#wrap'), 
-      tabs: [...this.shadowRoot.querySelectorAll('.tab')],
-      pages: {},
+      // tabs と pages の管理は com-tabs が行うため、ここでの参照取得や初期設定は削除
       sv: $('#sv'), svC: $('#sv-c'),
       hSl: $('#h-sl'), hTh: $('#h-th'),
       aSl: $('#a-sl'), aTh: $('#a-th'),
@@ -156,7 +147,6 @@ class picker extends HTMLElement {
       imageFile: $('#image-file'), imageReset: $('#image-reset'),
       paletteGrid: $('#palette-grid')
     };
-    [...this.shadowRoot.querySelectorAll('.page')].forEach(p => { this.#ui.pages[p.dataset.tab] = p; });
 
     const colors = ['#000000','#FFFFFF','#FF3B30','#FF9500','#FFCC00','#4CD964','#5AC8FA','#007AFF','#5856D6','#FF2D55','#8E8E93'];
     colors.forEach(c => {
@@ -170,7 +160,7 @@ class picker extends HTMLElement {
 
   #initEvents(){
     this.#ui.btn.onclick = (e) => { e.stopPropagation(); this.#state.isOpen ? this.#close() : this.#open(); };
-    this.#ui.tabs.forEach(t => t.onclick = (e) => this.#switchTab(e.target.dataset.tab));
+    // #switchTab へのイベントバインドを削除
     
     // Pointer Events（クリック中のみ動くように強化）
     this.#ui.sv.onpointerdown = (e) => this.#dragStart(e, (ev) => this.#svMove(ev));
@@ -223,10 +213,7 @@ class picker extends HTMLElement {
     moveFn(e); // 最初の一回
   }
 
-  #switchTab(tab){
-    this.#ui.tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === tab));
-    Object.values(this.#ui.pages).forEach(p => p.classList.toggle("hidden", p.dataset.tab !== tab));
-  }
+  // 不要になった #switchTab メソッドを削除
 
   #processFile(file) {
     if (!file.type.startsWith('image/')) return;
