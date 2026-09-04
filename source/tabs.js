@@ -1,6 +1,9 @@
 class ComTabs extends HTMLElement {
   static observedAttributes = ["orientation"];
 
+  #slot;
+  #tabsEl;
+
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
